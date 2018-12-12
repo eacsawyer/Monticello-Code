@@ -1,0 +1,318 @@
+---
+title: "Ware Dec_Prop_Site 6"
+author: "Beth Sawyer"
+date: "October 5, 2018"
+output:
+  html_document: default
+  pdf_document: default
+---
+BCS, 10.1.18 updated for ASV2018 Site 6 houses paper
+Updated with quadrat clusters updated from previous groupings; updated in Dec 2018, after ASV
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(RPostgreSQL)
+require(ggplot2)
+require(reshape2)
+require(dplyr)
+require(plotly)
+require(gridExtra)
+```
+
+## Query DAACS using SQL code wrapper
+
+```{r SQL query}
+
+# tell DBI which driver to use
+pgSQL <- dbDriver("PostgreSQL")
+# establish the connection
+DRCcon<-dbConnect(pgSQL, host='drc.iath.virginia.edu', port='5432',
+                  dbname='daacs-production',
+                  user='drcquery', password='!queryacct!')
+
+Site6Full<-dbGetQuery(DRCcon,'
+              SELECT
+                   "public"."tblContext"."QuadratID",
+                   "public"."tblContext"."ProjectID",
+                   "public"."tblCeramic"."Quantity",
+                   "public"."tblCeramicWare"."Ware",
+                   "public"."tblCeramicGenre"."CeramicGenre"
+                   FROM
+                   "public"."tblContext"
+                   INNER JOIN "public"."tblContextSample" ON "public"."tblContextSample"."ContextAutoID" = "public"."tblContext"."ContextAutoID"
+                   INNER JOIN "public"."tblGenerateContextArtifactID" ON "public"."tblContextSample"."ContextSampleID" = "public"."tblGenerateContextArtifactID"."ContextSampleID"
+                   INNER JOIN "public"."tblCeramic" ON "public"."tblCeramic"."GenerateContextArtifactID" = "public"."tblGenerateContextArtifactID"."GenerateContextArtifactID"
+                   INNER JOIN "public"."tblCeramicWare" ON "public"."tblCeramic"."WareID" = "public"."tblCeramicWare"."WareID"
+                   INNER JOIN "public"."tblCeramicGenre" ON "public"."tblCeramic"."CeramicGenreID" = "public"."tblCeramicGenre"."CeramicGenreID"
+                   WHERE
+                   
+                   ((
+                   "public"."tblContext"."ProjectID" =  \'106\') AND
+                   (("public"."tblCeramicWare"."Ware" = \'Creamware\') OR ("public"."tblCeramicWare"."Ware" = \'Pearlware\')
+                   OR ("public"."tblCeramicWare"."Ware" = \'Porcelain, Chinese\')
+                   OR ("public"."tblCeramicWare"."Ware" = \'Delftware, Dutch/British\') OR ("public"."tblCeramicWare"."Ware" = \'Jackfield Type\')
+                   OR ("public"."tblCeramicWare"."Ware" = \'Nottingham\') OR ("public"."tblCeramicWare"."Ware" = \'Staffordshire Brown Stoneware\')
+                   OR ("public"."tblCeramicWare"."Ware" = \'Whieldon-type Ware\') OR ("public"."tblCeramicWare"."Ware" = \'White Salt Glaze\')
+                   OR ("public"."tblCeramicWare"."Ware" = \'Rosso Antico\') OR ("public"."tblCeramicWare"."Ware" = \'Turner Type\')
+                   OR ("public"."tblCeramicWare"."Ware" = \'Coarse earthenware, unidentified\') OR ("public"."tblCeramicWare"."Ware" = \'Porcelain, unidentifiable\')
+                   OR ("public"."tblCeramicWare"."Ware" = \'British Stoneware\') OR ("public"."tblCeramicWare"."Ware" = \'Buckley-Type\')
+                   OR ("public"."tblCeramicWare"."Ware" = \'Astbury\') OR ("public"."tblCeramicWare"."Ware" = \'Black Basalt\') OR ("public"."tblCeramicWare"."Ware" = \'American Stoneware\')
+                   OR ("public"."tblCeramicWare"."Ware" = \'Redware\') OR ("public"."tblCeramicWare"."Ware" = \'Canary Ware\') OR ("public"."tblCeramicWare"."Ware" = \'Jasperware Type\')
+                   OR ("public"."tblCeramicWare"."Ware" = \'Iberian Ware\') OR ("public"."tblCeramicWare"."Ware" = \'Fulham Type\') OR ("public"."tblCeramicWare"."Ware" = \'Westerwald\')
+                   OR ("public"."tblCeramicWare"."Ware" = \'Slipware, North Midlands/Staffordshire\')
+                   ))
+                   '
+                   )
+                   
+
+```
+
+##Data manipulation
+Take out non-Genre sherds and put into a new dataframe. In full dataframe, make a new column that denotes decoration y/n to be used later.
+```{r Take out non-Genre sherds}
+Site6 <- subset(Site6Full, ! Site6Full$CeramicGenre  %in%  
+                       c('Not Applicable'))
+
+Site6_Full <- Site6Full %>%
+  mutate(decoration = ifelse(CeramicGenre == 'Not Applicable', 'no', 'yes'))
+```
+
+Assign quadrats to site areas. Only North and South will be used for this analysis, but all quadrats were given an area designation.
+```{r Assign quadrats to site areas}
+Site6_Full <- Site6_Full
+  Site6_Full$Area[(grepl("^013", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^014", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^016", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^028", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^029", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^030", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^031", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^032", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^033", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^034", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^035", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^036", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^037", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^040", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^043", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^044", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^045", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^046", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^047", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^048", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^051", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^052", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^053", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^054", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^055", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^056", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^057", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^058", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^059", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^061", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^062", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^065", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^066", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^069", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^070", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^071", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^072", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^073", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^074", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^075", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^078", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^079", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^080", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^081", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^083", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^084", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^085", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^086", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^087", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^097", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^098", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^099", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^100", Site6_Full$QuadratID))] <- 'North'
+Site6_Full$Area[(grepl("^106", Site6_Full$QuadratID))] <- 'North'
+
+
+  Site6_Full$Area[(grepl("^002", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^012", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^015", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^019", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^020", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^021", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^023", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^024", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^025", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^041", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^042", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^049", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^050", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^060", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^063", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^064", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^067", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^068", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^076", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^077", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^089", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^090", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^092", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^093", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^094", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^095", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^096", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^101", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^102", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^103", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^104", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^110", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^111", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^112", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^113", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^117", Site6_Full$QuadratID))] <- 'South'
+  Site6_Full$Area[(grepl("^118", Site6_Full$QuadratID))] <- 'South'
+
+  Site6_Full$Area[(grepl("^001", Site6_Full$QuadratID))] <- 'Souteast'
+  Site6_Full$Area[(grepl("^004", Site6_Full$QuadratID))] <- 'Souteast'
+  Site6_Full$Area[(grepl("^027", Site6_Full$QuadratID))] <- 'Souteast'
+  Site6_Full$Area[(grepl("^108", Site6_Full$QuadratID))] <- 'Souteast'
+  Site6_Full$Area[(grepl("^109", Site6_Full$QuadratID))] <- 'Souteast'
+  Site6_Full$Area[(grepl("^114", Site6_Full$QuadratID))] <- 'Souteast'
+  Site6_Full$Area[(grepl("^115", Site6_Full$QuadratID))] <- 'Souteast'
+
+  Site6_Full$Area[(grepl("^003", Site6_Full$QuadratID))] <- 'SW Stone'
+  Site6_Full$Area[(grepl("^005", Site6_Full$QuadratID))] <- 'SW Stone'
+  Site6_Full$Area[(grepl("^006", Site6_Full$QuadratID))] <- 'SW Stone'
+  Site6_Full$Area[(grepl("^007", Site6_Full$QuadratID))] <- 'SW Stone'
+  Site6_Full$Area[(grepl("^008", Site6_Full$QuadratID))] <- 'SW Stone'
+  Site6_Full$Area[(grepl("^009", Site6_Full$QuadratID))] <- 'SW Stone'
+  Site6_Full$Area[(grepl("^010", Site6_Full$QuadratID))] <- 'SW Stone'
+  Site6_Full$Area[(grepl("^011", Site6_Full$QuadratID))] <- 'SW Stone'
+  Site6_Full$Area[(grepl("^022", Site6_Full$QuadratID))] <- 'SW Stone'
+
+  Site6_Full$Area[(grepl("^038", Site6_Full$QuadratID))] <- 'Buffer'  
+  Site6_Full$Area[(grepl("^039", Site6_Full$QuadratID))] <- 'Buffer'  
+  Site6_Full$Area[(grepl("^026", Site6_Full$QuadratID))] <- 'Buffer'  
+  Site6_Full$Area[(grepl("^017", Site6_Full$QuadratID))] <- 'Buffer'  
+  Site6_Full$Area[(grepl("^018", Site6_Full$QuadratID))] <- 'Buffer'  
+  Site6_Full$Area[(grepl("^091", Site6_Full$QuadratID))] <- 'Buffer'  
+  Site6_Full$Area[(grepl("^107", Site6_Full$QuadratID))] <- 'Buffer'
+```
+
+
+Keep only North and South; make new column for ware type and genre combined. Also reassign generes to groups
+```{r tidy up and add column}
+  Site6_Areas1 <- Site6_Full %>%
+    filter(Area %in% c('North', 'South'))%>%
+    filter(decoration != 'no')%>%
+    filter(Ware != 'American Stoneware')
+  
+
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'An Hua'] <- 'An Hua'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Barley'] <- 'Molded Edge'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Blue and Gray'] <- 'Blue and Gray'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Feather Edge'] <- 'Molded Edge'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Handpainted Blue'] <- 'Handpainted'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Molded Edge Decoration, other'] <- 'Molded Edge'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Overglaze, handpainted'] <- 'Handpainted'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Handpainted, Polychrome Cool'] <- 'Handpainted'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Handpainted, Polychrome Other'] <- 'Handpainted'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Handpainted, Polychrome Warm'] <- 'Polychrome'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Royal Pattern'] <- 'Molded Edge'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Scratch Blue'] <- 'Scratch Blue'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Shell Edge, blue'] <- 'Shell Edge'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Shell Edge, green'] <- 'Shell Edge'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Shell Edge, unid.'] <- 'Shell Edge'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Slipware, factory made'] <- 'Slipware'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Sponge/Spatter'] <- 'Sponge/Spatter'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Transfer Print Over'] <- 'Printed over'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Transfer Print Under, black'] <- 'Printed under'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Transfer Print Under, blue'] <- 'Printed under'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Transfer Print Under, brown'] <- 'Printed under' 
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Transfer Print Under, green'] <- 'Printed under' 
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Transfer Print Under, light blue'] <- 'Printed under'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Transfer Print Under, unidentifiable'] <- 'Printed under'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Queen\'s Edge'] <- 'Molded Edge'
+Site6_Areas1$GenreStyle[Site6_Areas1$CeramicGenre == 'Flow, transfer print blue'] <- 'Printed under'
+
+
+```
+
+Aggregate by WareGenre and areas and generate sums per area using summarise function. Note these computations are only for decorated sherds. 
+```{r aggregate by areas}
+WareGenSite6  <- Site6_Areas1 %>%
+  group_by(Area, WareGen)%>%
+  summarise(total = n())
+```
+
+Calculate relative frequencies.
+```{r rel_freq}
+Site6_Areas2 <- WareGenSite6%>%
+  mutate(allceramics = sum(total))%>%
+  mutate(rel_freq = (total/allceramics))
+```
+
+Do calculations for undecorated versus decorated proportions. First, aggregate by areas
+```{r area aggregation}
+Dec_Check <- Site6_Full%>%
+  group_by(Area, decoration)%>%
+  filter(Area %in% c('North', 'South'))%>%
+  summarise(total = n())
+```
+
+Calculate relative frequencies for undecorated sherds by area.
+```{r rel_freq}
+Dec_Check2 <- Dec_Check%>%
+  mutate(Area_Sum = sum(total))%>%
+  mutate(Proportion = (total/Area_Sum))
+
+e<-head(Dec_Check2 [, 1:5], theme = e)
+e
+write.csv(e, file='Decoration.csv')
+```
+
+##Graphs and outputs
+
+```{r side-by-side bar graph}
+Site6_Areas2%>%
+  filter(WareGen != '%NA')
+
+a<- ggplot(data=Site6_Areas2, aes(x=WareGen, y=rel_freq, fill=Area)) +
+  geom_bar(stat="identity", position=position_dodge())+
+  theme(axis.text.x=element_text(angle = 45, hjust = 1))+
+  labs(title = "Proportion of Genre Type amongst Decorated Sherds", x="Ware Type and Genre", y="Proportion", cex.lab = 14)+
+  scale_fill_brewer(palette = "Dark2")
+a
+
+ggsave("Decorated Props.jpg", a, width=11, height=7.5, dpi=600)
+
+  
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
